@@ -91,6 +91,10 @@ public class DefaultPlugin implements BuiltinPlugin, REICommonPlugin {
         registry.registerComponents(Items.LINGERING_POTION);
         registry.registerComponents(Items.TIPPED_ARROW);
         registry.register((context, stack) -> 0, Items.FIREWORK_ROCKET, Items.FILLED_MAP);
+        // CraftEngine items reuse a vanilla base material and only differ by the "craftengine:id"
+        // stored in their custom data. Registering it globally keeps fuzzy recipe lookups from
+        // confusing a CraftEngine item with the vanilla material it is built on (and vice versa).
+        registry.registerGlobal(CraftEngineComparator.INSTANCE);
     }
     
     @Override
