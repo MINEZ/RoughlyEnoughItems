@@ -27,6 +27,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
@@ -55,5 +56,11 @@ public final class ReiSyncClientEvents {
     @SubscribeEvent
     static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         ReiSyncStore.clear();
+    }
+
+    /** Drives ReiSyncStore's batched entry injection so a sync never stalls a single frame. */
+    @SubscribeEvent
+    static void onClientTick(ClientTickEvent.Post event) {
+        ReiSyncStore.tick();
     }
 }
