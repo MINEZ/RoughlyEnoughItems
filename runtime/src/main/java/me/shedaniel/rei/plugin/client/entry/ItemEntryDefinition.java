@@ -126,6 +126,25 @@ public class ItemEntryDefinition implements EntryDefinition<ItemStack>, EntrySer
     
     @Override
     public ItemStack wildcard(EntryStack<ItemStack> entry, ItemStack value) {
+        // CraftEngine items carry a "craftengine:id" key in minecraft:custom_data that
+        // uniquely identifies them as distinct logical items even though they share a
+        // vanilla base material. Stripping all components (the default behaviour) would
+        // produce a wildcard equal to the bare base material, causing ViewsImpl to fall
+        // back to vanilla recipes when no CraftEngine-specific result is found for the
+        // primary lookup. Carrying the custom_data component over to the wildcard keeps
+        // craftengine:id in the FUZZY hash, making it stay distinct from the bare vanilla
+        // material and preventing the wildcard fallback from leaking into unrelated vanilla
+        // recipes.
+        net.minecraft.world.item.component.CustomData customData =
+                value.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+        if (customData != null
+                && customData.copyTag().getString(
+                        "craftengine:id")
+                        .isPresent()) {
+            ItemStack wildcard = new ItemStack(value.getItem(), 1);
+            wildcard.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA, customData);
+            return wildcard;
+        }
         return new ItemStack(value.getItem(), 1);
     }
     

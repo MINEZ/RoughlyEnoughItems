@@ -191,7 +191,10 @@ public abstract class ScreenOverlayImpl extends ScreenOverlay {
         this.widgets.add(InternalWidgets.wrapLateRenderable(hintsWidget));
         this.hintsWidget.init();
         
-        this.widgets.add(InternalWidgets.wrapLateRenderable(new ImportantWarningsWidget()));
+        // Disabled: this server is a Paper server without REI installed, so REI can never see the
+        // full recipe data and the "recipes not full" warning would fire on every join. It is
+        // expected here, so the warning widget is simply not added to the overlay.
+//        this.widgets.add(InternalWidgets.wrapLateRenderable(new ImportantWarningsWidget()));
     }
     
     private Rectangle getSearchFieldArea() {
