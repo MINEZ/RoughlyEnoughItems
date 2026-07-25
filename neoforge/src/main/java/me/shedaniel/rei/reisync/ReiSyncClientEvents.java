@@ -1,0 +1,60 @@
+/*
+ * This file is licensed under the MIT License, part of Roughly Enough Items.
+ * Copyright (c) 2018, 2019, 2020, 2021, 2022, 2023 shedaniel
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package me.shedaniel.rei.reisync;
+
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+
+/**
+ * Client connection lifecycle plus the tick that drives batched entry injection.
+ *
+ * <p>There is no client-to-server hello: NeoForge refuses to send custom serverbound
+ * payloads to a non-NeoForge (Paper) server, so it never arrived. The authoritative
+ * trigger is the server pushing items shortly after PlayerJoinEvent.
+ */
+@EventBusSubscriber(modid = "roughlyenoughitems", value = Dist.CLIENT)
+public final class ReiSyncClientEvents {
+
+    private ReiSyncClientEvents() {}
+
+    @SubscribeEvent
+    static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        ReiSyncClient.resetStats();
+        ReiSyncStore.clear(); // defensive: drop anything left over from a previous session
+    }
+
+    @SubscribeEvent
+    static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        ReiSyncStore.clear();
+    }
+
+    /** Drives ReiSyncStore's batched entry injection so a sync never stalls a single frame. */
+    @SubscribeEvent
+    static void onClientTick(ClientTickEvent.Post event) {
+        ReiSyncStore.tick();
+    }
+}
