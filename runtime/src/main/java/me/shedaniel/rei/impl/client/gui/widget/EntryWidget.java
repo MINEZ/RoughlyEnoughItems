@@ -562,10 +562,28 @@ public class EntryWidget extends Slot implements DraggableStackProviderWidget {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (containsMouse(event.x(), event.y())) {
             this.wasClicked = true;
+            // Some clients (e.g. NetEase) never deliver the right-button RELEASE event to REI's
+            // screen-input hook, so the normal mouseReleased -> doAction path never fires for
+            // "view uses". The right button is never a drag button, so it is safe to run the
+            // action on PRESS instead. Left button is untouched (kept on release so that
+            // press-and-drag to extract items still works). doAction() still handles favorites
+            // and transfer internally, so that behaviour is preserved.
+            if (interactable && usesOnPress(event.button()) && doAction(event)) {
+                this.wasClicked = false; // consume, so a late RELEASE (if any) will not re-fire
+                return true;
+            }
             return true;
         }
         
         return super.mouseClicked(event, doubleClick);
+    }
+    
+    // True when this mouse button is bound to "view uses" (and is not the left button, which must
+    // stay on release for drag-to-extract). Mirrors the usage branch in doAction.
+    private static boolean usesOnPress(int button) {
+        if (button == 0) return false;
+        return (ConfigObject.getInstance().getUsageKeybind().getType() != InputConstants.Type.MOUSE && button == 1)
+                || ConfigObject.getInstance().getUsageKeybind().matchesMouse(button);
     }
     
     @Override
