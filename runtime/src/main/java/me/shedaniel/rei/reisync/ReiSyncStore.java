@@ -109,8 +109,11 @@ public final class ReiSyncStore {
         }
         owned.retainAll(newHashes);
         addQueue.clear();
+        // A sync aborted halfway leaves its chunks in pending, so the next one can repeat entries.
+        LongSet queued = new LongOpenHashSet();
         for (EntryStack<?> entry : wanted) {
-            if (!owned.contains(EntryStacks.hashExact(entry))) {
+            long hash = EntryStacks.hashExact(entry);
+            if (!owned.contains(hash) && queued.add(hash)) {
                 addQueue.add(entry);
             }
         }
@@ -121,8 +124,19 @@ public final class ReiSyncStore {
         if (!diffPending && addQueue.isEmpty() && removeQueue.isEmpty() && !refreshPending) {
             return;
         }
-        if (PluginManager.areAnyReloading() || ReloadManagerImpl.countRunningReloadTasks() > 0) {
-            return; // wait for the reload; reinject() covers anything wanted in the meantime
+        try {
+            if (PluginManager.areAnyReloading() || ReloadManagerImpl.countRunningReloadTasks() > 0) {
+                return; // wait for the reload; reinject() covers anything wanted in the meantime
+            }
+        } catch (Throwable throwable) {
+            // REI itself is not usable, e.g. it failed to start. Drop the queued work so that this is
+            // logged once rather than every tick; a later reload adds the wanted entries back.
+            diffPending = false;
+            refreshPending = false;
+            addQueue.clear();
+            removeQueue.clear();
+            InternalLogger.getInstance().warn("[ReiSync] REI is not ready, skipping the entry list update", throwable);
+            return;
         }
         try {
             if (diffPending) {
