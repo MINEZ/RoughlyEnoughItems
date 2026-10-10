@@ -23,6 +23,7 @@
 
 package me.shedaniel.rei.reisync.fabric;
 
+import me.shedaniel.rei.RoughlyEnoughItemsState;
 import me.shedaniel.rei.reisync.ReiSyncClient;
 import me.shedaniel.rei.reisync.ReiSyncItemsPayload;
 import me.shedaniel.rei.reisync.ReiSyncStore;
@@ -44,6 +45,11 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 public class ReiSyncFabric implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        // Same gate as RoughlyEnoughItemsInitializer, which runs before this entrypoint: when REI
+        // failed to start, its registries and logger were never set up, so stay out of the way.
+        if (!RoughlyEnoughItemsState.getErrors().isEmpty()) {
+            return;
+        }
         PayloadTypeRegistry.clientboundPlay().register(ReiSyncItemsPayload.TYPE, ReiSyncItemsPayload.STREAM_CODEC);
         // Fabric invokes play payload handlers on the client thread, which is what REI requires.
         ClientPlayNetworking.registerGlobalReceiver(ReiSyncItemsPayload.TYPE,
