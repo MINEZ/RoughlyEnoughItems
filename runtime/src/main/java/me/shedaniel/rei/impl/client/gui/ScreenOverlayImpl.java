@@ -192,7 +192,10 @@ public abstract class ScreenOverlayImpl extends ScreenOverlay {
         this.widgets.add(InternalWidgets.wrapLateRenderable(hintsWidget));
         this.hintsWidget.init();
         
-        this.widgets.add(InternalWidgets.wrapLateRenderable(new ImportantWarningsWidget()));
+        // Disabled: the MINEZ server is a Paper server without REI installed, so REI never receives
+        // the full recipe data from it, and with "Local Recipes Fallback" set to Never this warning
+        // would show on every join. That is expected there, so the widget is simply not added.
+//        this.widgets.add(InternalWidgets.wrapLateRenderable(new ImportantWarningsWidget()));
     }
     
     private Rectangle getSearchFieldArea() {
