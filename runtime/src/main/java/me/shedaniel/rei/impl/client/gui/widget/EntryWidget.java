@@ -30,6 +30,7 @@ import me.shedaniel.clothconfig2.api.animator.NumberAnimator;
 import me.shedaniel.clothconfig2.api.animator.ValueAnimator;
 import me.shedaniel.math.Point;
 import me.shedaniel.math.Rectangle;
+import me.shedaniel.rei.api.client.ClientHelper;
 import me.shedaniel.rei.api.client.REIRuntime;
 import me.shedaniel.rei.api.client.config.ConfigObject;
 import me.shedaniel.rei.api.client.favorites.FavoriteEntry;
@@ -562,10 +563,32 @@ public class EntryWidget extends Slot implements DraggableStackProviderWidget {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (containsMouse(event.x(), event.y())) {
             this.wasClicked = true;
+            // Some clients (e.g. NetEase) never deliver the right-button RELEASE event to REI's
+            // screen-input hook, so the normal mouseReleased -> doAction path never fires for
+            // "view uses". The right button is never a drag button, so it is safe to run the
+            // action on PRESS instead. The left button is untouched and stays on release, so
+            // press-and-drag to extract items still works. doAction() still handles favorites
+            // and transfers itself, so that behaviour is preserved.
+            if (interactable && usesOnPress(event.button())) {
+                // Consume the click whatever the outcome, so a RELEASE that does arrive cannot run
+                // doAction() a second time (e.g. when the entry has no usages).
+                this.wasClicked = false;
+                doAction(event);
+            }
             return true;
         }
         
         return super.mouseClicked(event, doubleClick);
+    }
+    
+    // True when this mouse button is bound to "view uses" and is not the left button, which has
+    // to stay on release for drag-to-extract. Mirrors the usage branch in doAction(). In cheat mode
+    // the right button gives items instead, and the entry list deletes a held stack on release
+    // before its entries see the click, so upstream's release-time handling is kept there.
+    private static boolean usesOnPress(int button) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT || ClientHelper.getInstance().isCheating()) return false;
+        return (ConfigObject.getInstance().getUsageKeybind().getType() != InputConstants.Type.MOUSE && button == InputConstants.MOUSE_BUTTON_RIGHT)
+                || ConfigObject.getInstance().getUsageKeybind().matchesMouse(button);
     }
     
     @Override
