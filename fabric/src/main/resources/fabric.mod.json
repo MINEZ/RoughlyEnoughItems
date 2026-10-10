@@ -21,7 +21,8 @@
     ],
     "client": [
       "me.shedaniel.rei.fabric.RoughlyEnoughItemsFabric",
-        "me.shedaniel.rei.impl.init.RoughlyEnoughItemsInitializer::onInitializeClient"
+        "me.shedaniel.rei.impl.init.RoughlyEnoughItemsInitializer::onInitializeClient",
+      "me.shedaniel.rei.reisync.fabric.ReiSyncFabric"
     ],
     "rei_common": [
       "me.shedaniel.rei.plugin.common.DefaultPlugin",
@@ -30,7 +31,8 @@
     "rei_client": [
       "me.shedaniel.rei.plugin.client.DefaultClientPlugin",
       "me.shedaniel.rei.plugin.client.runtime.DefaultClientRuntimePlugin",
-      "me.shedaniel.rei.plugin.client.runtime.HideIngredientsFromTagsPlugin"
+      "me.shedaniel.rei.plugin.client.runtime.HideIngredientsFromTagsPlugin",
+      "me.shedaniel.rei.reisync.ReiSyncClientPlugin"
     ]
   },
   "accessWidener": "roughlyenoughitems.accessWidener",
