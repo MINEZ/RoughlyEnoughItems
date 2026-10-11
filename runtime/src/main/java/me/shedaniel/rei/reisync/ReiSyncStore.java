@@ -68,6 +68,7 @@ public final class ReiSyncStore {
     private static final LongSet owned = new LongOpenHashSet();
     /** Entries accumulating across the chunks of the sync in flight. */
     private static final List<EntryStack<?>> pending = new ArrayList<>();
+    private static final SyncAccumulator<EntryStack<?>> batches = new SyncAccumulator<>();
     /** Entries waiting to be added, drained one batch per tick. */
     private static final Deque<EntryStack<?>> addQueue = new ArrayDeque<>();
     /** Exact hashes of owned entries waiting to be removed. */
@@ -78,16 +79,27 @@ public final class ReiSyncStore {
     private static boolean refreshPending = false;
     
     public static synchronized void accept(List<EntryStack<?>> chunkEntries, boolean last) {
+        batches.clear();
         pending.addAll(chunkEntries);
         if (last) {
-            commit();
+            commit(pending);
+            pending.clear();
         }
     }
-    
-    private static synchronized void commit() {
-        wanted.clear();
-        wanted.addAll(pending);
+
+    public static synchronized void accept(long syncId, int sequence, List<EntryStack<?>> entries, boolean last) {
         pending.clear();
+        batches.accept(syncId, sequence, entries, last).ifPresent(ReiSyncStore::commit);
+    }
+
+    public static synchronized void discardPending() {
+        pending.clear();
+        batches.discard();
+    }
+    
+    private static synchronized void commit(List<EntryStack<?>> entries) {
+        wanted.clear();
+        wanted.addAll(entries);
         // Comparing against the owned entries needs exact hashes, which read REI's comparator registry.
         // A reload may be rebuilding that registry right now, so the comparison waits for tick().
         diffPending = true;
@@ -109,7 +121,7 @@ public final class ReiSyncStore {
         }
         owned.retainAll(newHashes);
         addQueue.clear();
-        // A sync aborted halfway leaves its chunks in pending, so the next one can repeat entries.
+        // 旧频道无法识别中断的批次；排队前去重也能避免重复条目。
         LongSet queued = new LongOpenHashSet();
         for (EntryStack<?> entry : wanted) {
             long hash = EntryStacks.hashExact(entry);
@@ -181,6 +193,7 @@ public final class ReiSyncStore {
         owned.clear();
         wanted.clear();
         pending.clear();
+        batches.clear();
         addQueue.clear();
         diffPending = false;
         if (had) {

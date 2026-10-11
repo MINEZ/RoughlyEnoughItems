@@ -32,10 +32,14 @@ import net.minecraft.resources.Identifier;
  * One clientbound chunk of the item sync. The body is kept as an opaque blob here and decoded
  * by {@link ReiSyncClient}, so the packet itself carries nothing version-dependent.
  */
-public record ReiSyncItemsPayload(byte[] data) implements CustomPacketPayload {
+public record ReiSyncItemsPayload(byte[] data, boolean batched) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<ReiSyncItemsPayload> TYPE =
             new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(
                     Protocol.ITEMS_CHANNEL_NAMESPACE, Protocol.ITEMS_CHANNEL_PATH));
+
+    public static final CustomPacketPayload.Type<ReiSyncItemsPayload> BATCHED_TYPE =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(
+                    Protocol.ITEMS_CHANNEL_NAMESPACE, Protocol.BATCHED_ITEMS_CHANNEL_PATH));
     
     public static final StreamCodec<FriendlyByteBuf, ReiSyncItemsPayload> STREAM_CODEC =
             StreamCodec.of(
@@ -43,11 +47,20 @@ public record ReiSyncItemsPayload(byte[] data) implements CustomPacketPayload {
                     buf -> {
                         byte[] data = new byte[buf.readableBytes()];
                         buf.readBytes(data);
-                        return new ReiSyncItemsPayload(data);
+                        return new ReiSyncItemsPayload(data, false);
+                    });
+
+    public static final StreamCodec<FriendlyByteBuf, ReiSyncItemsPayload> BATCHED_STREAM_CODEC =
+            StreamCodec.of(
+                    (buf, payload) -> buf.writeBytes(payload.data()),
+                    buf -> {
+                        byte[] data = new byte[buf.readableBytes()];
+                        buf.readBytes(data);
+                        return new ReiSyncItemsPayload(data, true);
                     });
     
     @Override
     public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+        return batched ? BATCHED_TYPE : TYPE;
     }
 }

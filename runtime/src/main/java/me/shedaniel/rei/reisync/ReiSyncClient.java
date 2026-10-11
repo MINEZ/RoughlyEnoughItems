@@ -72,43 +72,43 @@ public final class ReiSyncClient {
     }
     
     /** Called on the client thread for each received chunk. */
-    public static void onItemsChunk(byte[] data) {
+    public static void onItemsChunk(byte[] data, boolean batched) {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         if (connection == null) return;
         RegistryAccess registryAccess = connection.registryAccess();
         
-        boolean last = false;
+        final Protocol.Chunk chunk;
+        try {
+            chunk = Protocol.readChunk(data, batched);
+        } catch (IOException | RuntimeException e) {
+            ReiSyncStore.discardPending();
+            InternalLogger.getInstance().warn("[ReiSync] 分片格式错误，已丢弃当前未完成的同步：%s", e.toString());
+            return;
+        }
         List<EntryStack<?>> entries = new ArrayList<>();
-        // Anything thrown out of a Fabric payload handler disconnects the client, so a malformed chunk
-        // is logged and whatever was read before the problem is kept.
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(data))) {
-            last = in.readBoolean();
-            int count = in.readInt();
-            if (count < 0) throw new IOException("negative item count " + count);
-            for (int i = 0; i < count; i++) {
-                String id = in.readUTF();
-                int length = in.readInt();
-                if (length < 0 || length > in.available()) throw new IOException("bad item length " + length);
-                byte[] itemBytes = in.readNBytes(length);
-                try {
-                    ItemStack stack = decodeTolerant(itemBytes, registryAccess);
-                    if (!stack.isEmpty()) {
-                        entries.add(EntryStacks.of(stack));
-                    } else if (DEBUG) {
-                        InternalLogger.getInstance().info("[ReiSync] Skipped item %s: nothing to add", id);
-                    }
-                } catch (Throwable throwable) {
-                    decodeFailures++;
-                    if (DEBUG) {
-                        InternalLogger.getInstance().warn("[ReiSync] Failed to decode item %s: %s", id, throwable.toString());
-                    }
+        for (Protocol.Item item : chunk.items()) {
+            String id = item.id();
+            byte[] itemBytes = item.data();
+            try {
+                ItemStack stack = decodeTolerant(itemBytes, registryAccess);
+                if (!stack.isEmpty()) {
+                    entries.add(EntryStacks.of(stack));
+                } else if (DEBUG) {
+                    InternalLogger.getInstance().info("[ReiSync] Skipped item %s: nothing to add", id);
+                }
+            } catch (Throwable throwable) {
+                decodeFailures++;
+                if (DEBUG) {
+                    InternalLogger.getInstance().warn("[ReiSync] Failed to decode item %s: %s", id, throwable.toString());
                 }
             }
-        } catch (IOException | RuntimeException e) {
-            InternalLogger.getInstance().warn("[ReiSync] Malformed chunk: %s", e.toString());
         }
-        ReiSyncStore.accept(entries, last);
-        if (last && decodeFailures > 0) {
+        if (batched) {
+            ReiSyncStore.accept(chunk.syncId(), chunk.sequence(), entries, chunk.last());
+        } else {
+            ReiSyncStore.accept(entries, chunk.last());
+        }
+        if (chunk.last() && decodeFailures > 0) {
             InternalLogger.getInstance().warn("[ReiSync] %d item(s) could not be decoded and were skipped"
                     + " (run with -Dreisync.debug=true for details).", decodeFailures);
             decodeFailures = 0;

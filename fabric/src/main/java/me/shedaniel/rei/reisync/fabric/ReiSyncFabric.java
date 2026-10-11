@@ -51,9 +51,12 @@ public class ReiSyncFabric implements ClientModInitializer {
             return;
         }
         PayloadTypeRegistry.clientboundPlay().register(ReiSyncItemsPayload.TYPE, ReiSyncItemsPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ReiSyncItemsPayload.BATCHED_TYPE, ReiSyncItemsPayload.BATCHED_STREAM_CODEC);
         // Fabric invokes play payload handlers on the client thread, which is what REI requires.
         ClientPlayNetworking.registerGlobalReceiver(ReiSyncItemsPayload.TYPE,
-                (payload, context) -> ReiSyncClient.onItemsChunk(payload.data()));
+                (payload, context) -> ReiSyncClient.onItemsChunk(payload.data(), payload.batched()));
+        ClientPlayNetworking.registerGlobalReceiver(ReiSyncItemsPayload.BATCHED_TYPE,
+                (payload, context) -> ReiSyncClient.onItemsChunk(payload.data(), payload.batched()));
         
         ClientPlayConnectionEvents.JOIN.register((listener, sender, client) -> {
             ReiSyncClient.resetStats();
