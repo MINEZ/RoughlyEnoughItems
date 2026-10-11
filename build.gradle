@@ -7,8 +7,12 @@ plugins {
 
 import java.text.SimpleDateFormat
 
-def runNumber = System.getenv("GITHUB_RUN_NUMBER") ?: "9999"
-version = rootProject.base_version + "." + runNumber + (rootProject.unstable.toBoolean() ? "-alpha" : "")
+def upstreamBuild = providers.gradleProperty("upstream_build").get()
+def forkRevision = providers.gradleProperty("fork_revision").get()
+if (!(upstreamBuild ==~ /[1-9][0-9]*/) || !(forkRevision ==~ /[1-9][0-9]*/)) {
+    throw new GradleException("upstream_build 和 fork_revision 必须为正整数。")
+}
+version = rootProject.base_version + "." + upstreamBuild + "." + forkRevision + (rootProject.unstable.toBoolean() ? "-alpha" : "")
 
 group = "me.shedaniel"
 

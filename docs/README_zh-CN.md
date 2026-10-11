@@ -17,7 +17,7 @@
 
 <br>
 
-<a href="https://github.com/MINEZ/RoughlyEnoughItems/issues">问题反馈</a> ｜
+<a href="https://github.com/MINEZ/RoughlyEnoughItems">项目仓库</a> ｜
 <a href="https://github.com/MINEZ/RoughlyEnoughItems/releases">版本发布</a> ｜
 <a href="#相对上游的改动">改动一览</a>
 
@@ -26,7 +26,7 @@
 > [!IMPORTANT]
 > **本项目是非官方 Fork，与 shedaniel 及 Roughly Enough Items 项目没有关系，既未经其认可，也不由其提供支持。**
 >
-> 请勿把与本 Fork 有关的任何问题带到上游仓库或其社区渠道，请改用[本仓库的问题反馈](https://github.com/MINEZ/RoughlyEnoughItems/issues)。
+> 请勿把与本 Fork 有关的任何问题带到上游仓库或其社区渠道。请向 MINEZ 维护者反馈 Fork 相关问题；本仓库目前未启用 Issues。
 >
 > 要区分两者，请先用官方构建复现问题：
 >
@@ -51,7 +51,7 @@
 | “配方数据不完整”警告 | 移除 | Fabric、NeoForge |
 | 合成过滤器按钮图标和子菜单裁剪 | 修复 | Fabric、NeoForge |
 
-**ReiSync 物品同步。** CraftEngine 物品只存在于服务器上，客户端自己无从列出它们。ReiSync 服务端插件会在玩家进入服务器后不久，以及执行 `/ce reload` 之后，通过 `reisync:items` 频道推送全部 CraftEngine 物品；本 Fork 负责接收，并把它们加入物品列表。每个物品以 Paper 序列化后的 NBT 形式传来，再逐个组件重建：客户端无法识别的组件会被跳过，而不是丢掉整个物品，因此服务器与客户端的 Minecraft 版本略有不同时也能正常工作。不过客户端不做数据升级，底层物品在客户端上不存在的物品会被丢弃。条目每 tick 加入 200 个（可用 `-Dreisync.batch=<n>` 调整，最少 16 个），且不会重新过滤整个列表，因此进入服务器时不会卡顿；离开服务器时，这些条目会被移除。启动时加上 `-Dreisync.debug=true`，可在日志中查看解码失败的物品。
+**ReiSync 物品同步。** CraftEngine 物品只存在于服务器上，客户端自己无从列出它们。ReiSync 服务端插件会在玩家进入服务器后不久，以及执行 `/ce reload` 之后，通过 `reisync:items` 频道推送全部 CraftEngine 物品；本 Fork 负责接收，并把它们加入物品列表。每个物品以 Paper 序列化后的 NBT 形式传来，再逐个组件重建：客户端无法识别的组件会被跳过，而不是丢掉整个物品，因此服务器与客户端的 Minecraft 版本略有不同时也能正常工作。不过客户端不做数据升级，底层物品在客户端上不存在的物品会被丢弃。条目每 tick 加入 200 个（可用 `-Dreisync.batch=<n>` 调整，最少 16 个），且不会重新过滤整个列表，以减少每 tick 的处理量；离开服务器时，这些条目会被移除。启动时加上 `-Dreisync.debug=true`，可在日志中查看解码失败的物品。
 
 **完整批次同步。** 配合 ReiSync 1.7.1 或更新版本时，`reisync:items_v2` 频道会携带批次 ID 和从 0 开始的分片序号。新批次会丢弃上一轮未完成的分片，只有完整、连续的批次才能替换物品列表；格式错误的分片不会提交半份列表。旧的 `reisync:items` 频道仍用于兼容旧服务器，但无法识别中断的批次。需要同时升级两个项目，才能获得完整批次保证。
 
@@ -61,21 +61,21 @@
 
 **“配方数据不完整”警告。** MINEZ 服务器没有安装 REI，REI 无法从服务器获得完整的配方数据。当 Local Recipes Fallback（本地配方回退）设为 Never 时，上游每次进入服务器都会在左上角显示一条警告。这在 MINEZ 服务器上是预期情况，因此本 Fork 完全不再显示该警告。
 
-## 构建
-
 **菜单绘制。** 合成过滤器按钮恢复显示工作台图标。子菜单新建裁剪栈时使用完整的 GUI 范围，文字和控件可以正常显示在父菜单之外。
+
+## 构建
 
 需要 JDK 25。
 
 ```bash
-GITHUB_RUN_NUMBER=<上游构建号>.<Fork 修订号> ./gradlew :fabric:build
+./gradlew :fabric:build
 ```
 
-产物位于 `fabric/build/libs/`，例如 `RoughlyEnoughItems-26.3.<上游构建号>.<Fork 修订号>.jar`。在 Windows PowerShell 中，请先用 `$env:GITHUB_RUN_NUMBER = "<上游构建号>.<Fork 修订号>"` 设置该变量。
+在 Windows PowerShell 中使用 `.\gradlew.bat :fabric:build`。产物位于 `fabric/build/libs/`，文件名包含版本号 `26.3.824.2`。运行 `./gradlew :runtime:test :default-plugin:test`，可执行菜单裁剪和同步相关的回归测试。
 
 ## 版本号
 
-版本号为 `<base_version>.<构建号>`：`base_version` 取自 `gradle.properties`，构建号取自环境变量 `GITHUB_RUN_NUMBER`，未设置时为 `9999`。本 Fork 发布时，构建号由所基于的上游构建号加上 Fork 修订号组成：以 `26.3.824.1` 为例，`824` 是上游构建号，末尾的 `.1` 是 Fork 修订号。这样我们的版本号就不会与上游的发布版本冲突。
+版本号为 `<base_version>.<upstream_build>.<fork_revision>`，三项均取自 `gradle.properties`。当前版本为 `26.3.824.2`，基于上游 CF CI 构建 `824`，Fork 修订号为 `2`。本 Fork 的 `GITHUB_RUN_NUMBER` 不再影响版本号，本地和 CI 构建都会保留额外修订号。更新上游基线或发布新版本时，请修改相应属性；临时构建也可用 `-Pupstream_build=824 -Pfork_revision=2` 覆盖。
 
 上游项目中的下载链接指向官方构建，**不**包含这些改动。
 
