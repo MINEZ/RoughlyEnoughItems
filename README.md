@@ -61,7 +61,7 @@ Following upstream, Minecraft 26.3 on Fabric and NeoForge. The ReiSync item stre
 
 **Recipes-not-full warning.** The MINEZ server does not run REI, so REI never receives the full recipe data from it. With Local Recipes Fallback set to Never, upstream shows a warning in the top-left corner on every join. That is expected here, so the warning is not shown at all.
 
-**Menu rendering.** The craftable filter button once again displays the crafting table icon. Submenus use the full GUI bounds when creating a fresh scissor stack, so their text and controls remain visible outside the parent menu.
+**Menu rendering.** The craftable filter button once again displays the crafting table icon. The icon is created lazily during rendering, after Minecraft has bound the item’s components, so initializing REI on a startup screen does not create an item stack too early. Submenus use the full GUI bounds when creating a fresh scissor stack, so their text and controls remain visible outside the parent menu.
 
 ## Building
 
@@ -71,11 +71,11 @@ Requires JDK 25.
 ./gradlew :fabric:build
 ```
 
-On Windows PowerShell, use `.\gradlew.bat :fabric:build`. The result lands in `fabric/build/libs/` and includes version `26.3.824.2` in its filename. Run `./gradlew :runtime:test :default-plugin:test` for the menu clipping and synchronization regression tests.
+On Windows PowerShell, use `.\gradlew.bat :fabric:build`. The result lands in `fabric/build/libs/` and includes version `26.3.824.3` in its filename. Run `./gradlew :runtime:test :default-plugin:test` for the menu clipping and synchronization regression tests.
 
 ## Versioning
 
-The version is `<base_version>.<upstream_build>.<fork_revision>`. All three values come from `gradle.properties`; the current version is `26.3.824.2`, based on upstream CF CI build `824`, with fork revision `2`. The fork’s own `GITHUB_RUN_NUMBER` does not change the version, so local and CI builds retain the extra revision. When updating the baseline or making a new release, update the matching property; a one-off build can override it with `-Pupstream_build=824 -Pfork_revision=2`.
+The version is `<base_version>.<upstream_build>.<fork_revision>`. All three values come from `gradle.properties`; the current version is `26.3.824.3`, based on upstream CF CI build `824`, with fork revision `3`. The fork’s own `GITHUB_RUN_NUMBER` does not change the version, so local and CI builds retain the extra revision. When updating the baseline or making a new release, update the matching property; a one-off build can override it with `-Pupstream_build=824 -Pfork_revision=3`.
 
 The download links on the upstream project point at official builds and do **not** include these changes.
 

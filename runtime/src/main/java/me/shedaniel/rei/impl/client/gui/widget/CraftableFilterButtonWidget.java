@@ -23,6 +23,7 @@
 
 package me.shedaniel.rei.impl.client.gui.widget;
 
+import com.google.common.base.Suppliers;
 import dev.architectury.platform.Platform;
 import dev.architectury.utils.value.BooleanValue;
 import me.shedaniel.math.Point;
@@ -31,6 +32,7 @@ import me.shedaniel.rei.api.client.REIRuntime;
 import me.shedaniel.rei.api.client.config.ConfigManager;
 import me.shedaniel.rei.api.client.config.ConfigObject;
 import me.shedaniel.rei.api.client.favorites.FavoriteMenuEntry;
+import me.shedaniel.rei.api.client.gui.DrawableConsumer;
 import me.shedaniel.rei.api.client.gui.config.SearchFieldLocation;
 import me.shedaniel.rei.api.client.gui.widgets.Button;
 import me.shedaniel.rei.api.client.gui.widgets.Tooltip;
@@ -56,12 +58,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.item.Items;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class CraftableFilterButtonWidget {
@@ -70,7 +73,6 @@ public class CraftableFilterButtonWidget {
     public static Widget create(ScreenOverlayImpl overlay) {
         Rectangle bounds = getCraftableFilterBounds();
         MenuAccess access = overlay.menuAccess();
-        ItemStack icon = new ItemStack(Blocks.CRAFTING_TABLE);
         Button filterButton = Widgets.createButton(bounds, Component.empty())
                 .focusable(false)
                 .onClick(button -> {
@@ -84,9 +86,18 @@ public class CraftableFilterButtonWidget {
                 })
                 .containsMousePredicate((button, point) -> button.getBounds().contains(point) && overlay.isNotInExclusionZones(point.x, point.y))
                 .tooltipLineSupplier(button -> Component.translatable(ConfigManager.getInstance().isCraftableOnlyEnabled() ? "text.rei.showing_craftable" : "text.rei.showing_all"));
-        Widget iconWidget = Widgets.createDrawableWidget((graphics, mouseX, mouseY, delta) ->
-                graphics.renderItem(icon, bounds.x + 2, bounds.y + 2));
+        Widget iconWidget = Widgets.createDrawableWidget(createIconRenderer(bounds));
         return Widgets.concat(filterButton, iconWidget);
+    }
+
+    static DrawableConsumer createIconRenderer(Rectangle bounds) {
+        // 启动界面也会初始化覆盖层；等物品组件绑定完成后，首次绘制时再创建图标。
+        Supplier<ItemStack> icon = Suppliers.memoize(() -> new ItemStack(Items.CRAFTING_TABLE));
+        return (graphics, mouseX, mouseY, delta) -> {
+            if (Items.CRAFTING_TABLE.builtInRegistryHolder().areComponentsBound()) {
+                graphics.renderItem(icon.get(), bounds.x + 2, bounds.y + 2);
+            }
+        };
     }
     
     private static Collection<FavoriteMenuEntry> menuEntries(MenuAccess access) {

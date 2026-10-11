@@ -61,7 +61,7 @@
 
 **“配方数据不完整”警告。** MINEZ 服务器没有安装 REI，REI 无法从服务器获得完整的配方数据。当 Local Recipes Fallback（本地配方回退）设为 Never 时，上游每次进入服务器都会在左上角显示一条警告。这在 MINEZ 服务器上是预期情况，因此本 Fork 完全不再显示该警告。
 
-**菜单绘制。** 合成过滤器按钮恢复显示工作台图标。子菜单新建裁剪栈时使用完整的 GUI 范围，文字和控件可以正常显示在父菜单之外。
+**菜单绘制。** 合成过滤器按钮恢复显示工作台图标。图标在绘制时延迟创建，并先检查 Minecraft 是否已绑定物品组件，避免启动界面初始化 REI 时过早创建 `ItemStack`。子菜单新建裁剪栈时使用完整的 GUI 范围，文字和控件可以正常显示在父菜单之外。
 
 ## 构建
 
@@ -71,11 +71,11 @@
 ./gradlew :fabric:build
 ```
 
-在 Windows PowerShell 中使用 `.\gradlew.bat :fabric:build`。产物位于 `fabric/build/libs/`，文件名包含版本号 `26.3.824.2`。运行 `./gradlew :runtime:test :default-plugin:test`，可执行菜单裁剪和同步相关的回归测试。
+在 Windows PowerShell 中使用 `.\gradlew.bat :fabric:build`。产物位于 `fabric/build/libs/`，文件名包含版本号 `26.3.824.3`。运行 `./gradlew :runtime:test :default-plugin:test`，可执行菜单裁剪和同步相关的回归测试。
 
 ## 版本号
 
-版本号为 `<base_version>.<upstream_build>.<fork_revision>`，三项均取自 `gradle.properties`。当前版本为 `26.3.824.2`，基于上游 CF CI 构建 `824`，Fork 修订号为 `2`。本 Fork 的 `GITHUB_RUN_NUMBER` 不再影响版本号，本地和 CI 构建都会保留额外修订号。更新上游基线或发布新版本时，请修改相应属性；临时构建也可用 `-Pupstream_build=824 -Pfork_revision=2` 覆盖。
+版本号为 `<base_version>.<upstream_build>.<fork_revision>`，三项均取自 `gradle.properties`。当前版本为 `26.3.824.3`，基于上游 CF CI 构建 `824`，Fork 修订号为 `3`。本 Fork 的 `GITHUB_RUN_NUMBER` 不再影响版本号，本地和 CI 构建都会保留额外修订号。更新上游基线或发布新版本时，请修改相应属性；临时构建也可用 `-Pupstream_build=824 -Pfork_revision=3` 覆盖。
 
 上游项目中的下载链接指向官方构建，**不**包含这些改动。
 
