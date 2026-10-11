@@ -72,8 +72,18 @@ public final class CraftEngineComparator {
         CompoundTag tag = customData.copyTag();
         Optional<String> id = tag.getString(CRAFT_ENGINE_ID);
         // Plain vanilla stacks have no CraftEngine id -> constant 0, so their hashing is unchanged.
-        return id.isPresent() ? id.get().hashCode() : 0L;
+        return id.map(CraftEngineComparator::hashId).orElse(0L);
     };
+
+    /** 使用完整的 64 位哈希，避免 “minez:an” 和 “minez:c0” 等合法 ID 的 32 位碰撞。 */
+    static long hashId(String id) {
+        long hash = 0xcbf29ce484222325L;
+        for (int i = 0; i < id.length(); i++) {
+            hash ^= id.charAt(i);
+            hash *= 0x100000001b3L;
+        }
+        return hash;
+    }
     
     private CraftEngineComparator() {
     }
