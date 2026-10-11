@@ -55,6 +55,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Blocks;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -68,6 +70,7 @@ public class CraftableFilterButtonWidget {
     public static Widget create(ScreenOverlayImpl overlay) {
         Rectangle bounds = getCraftableFilterBounds();
         MenuAccess access = overlay.menuAccess();
+        ItemStack icon = new ItemStack(Blocks.CRAFTING_TABLE);
         Button filterButton = Widgets.createButton(bounds, Component.empty())
                 .focusable(false)
                 .onClick(button -> {
@@ -81,7 +84,9 @@ public class CraftableFilterButtonWidget {
                 })
                 .containsMousePredicate((button, point) -> button.getBounds().contains(point) && overlay.isNotInExclusionZones(point.x, point.y))
                 .tooltipLineSupplier(button -> Component.translatable(ConfigManager.getInstance().isCraftableOnlyEnabled() ? "text.rei.showing_craftable" : "text.rei.showing_all"));
-        return filterButton;
+        Widget iconWidget = Widgets.createDrawableWidget((graphics, mouseX, mouseY, delta) ->
+                graphics.renderItem(icon, bounds.x + 2, bounds.y + 2));
+        return Widgets.concat(filterButton, iconWidget);
     }
     
     private static Collection<FavoriteMenuEntry> menuEntries(MenuAccess access) {

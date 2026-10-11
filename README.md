@@ -49,6 +49,7 @@ Following upstream, Minecraft 26.3 on Fabric and NeoForge. The ReiSync item stre
 | Right-click opening an item's usages | Fixed | Fabric, NeoForge |
 | CraftEngine items in recipe and usage lookups | Fixed | Fabric, NeoForge |
 | “Recipes not full” warning | Removed | Fabric, NeoForge |
+| Craftable filter button icon and submenu clipping | Fixed | Fabric, NeoForge |
 
 **ReiSync item stream.** CraftEngine items only exist on the server, so a client has no way to list them by itself. The ReiSync server plugin pushes every CraftEngine item on the `reisync:items` channel shortly after a player joins, and again after `/ce reload`; this fork receives them and adds them to the item list. Each item arrives as the NBT Paper serializes it and is rebuilt one data component at a time, so a component this client does not understand is skipped instead of losing the whole item. That lets a server on a somewhat different Minecraft version than the client still work, although an item whose base item does not exist on the client is dropped, as no data fixing is done. Entries are added 200 per tick (adjustable with `-Dreisync.batch=<n>`, minimum 16) without refiltering the whole list, so joining a server does not stall the game, and they are removed again on leaving. Launch with `-Dreisync.debug=true` to log the items that fail to decode.
 
@@ -59,6 +60,8 @@ Following upstream, Minecraft 26.3 on Fabric and NeoForge. The ReiSync item stre
 **Recipes-not-full warning.** The MINEZ server does not run REI, so REI never receives the full recipe data from it. With Local Recipes Fallback set to Never, upstream shows a warning in the top-left corner on every join. That is expected here, so the warning is not shown at all.
 
 ## Building
+
+**Menu rendering.** The craftable filter button once again displays the crafting table icon. Submenus use the full GUI bounds when creating a fresh scissor stack, so their text and controls remain visible outside the parent menu.
 
 Requires JDK 25.
 
