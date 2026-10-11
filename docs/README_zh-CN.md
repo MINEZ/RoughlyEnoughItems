@@ -48,6 +48,7 @@
 | 接收 ReiSync 服务端插件推送的 CraftEngine 物品 | 新增 | Fabric |
 | 右键打开物品用途 | 修复 | Fabric、NeoForge |
 | CraftEngine 物品的配方与用途查询 | 修复 | Fabric、NeoForge |
+| REI 重载后保留服务端配方 | 修复 | Fabric、NeoForge |
 | “配方数据不完整”警告 | 移除 | Fabric、NeoForge |
 | 合成过滤器按钮图标和子菜单裁剪 | 修复 | Fabric、NeoForge |
 
@@ -58,6 +59,8 @@
 **右键查看用途。** 网易等客户端不会把鼠标右键的“释放”事件交给 REI，因此右键点击物品毫无反应，只能按 U 键打开用途。现在右键在按下时就会触发。右键从不用于拖动，因此不会有任何损失；左键仍在释放时触发，保留了按住拖出物品的操作。作弊模式下右键用于给予物品，因此仍与上游一样在释放时触发。
 
 **CraftEngine 配方。** CraftEngine 物品的底层是原版物品，其真实身份以 `craftengine:id` 的形式存放在 `minecraft:custom_data` 中。上游在查询配方与用途时按底层物品比较，导致 CraftEngine 物品会混入其底层物品的全部原版配方，反之亦然。现在该 ID 也参与比较，查询无结果时上游所做的通配回退也会保留它。ID 使用 64 位哈希，避免 Java 的 32 位字符串哈希中已知的碰撞导致不同 CraftEngine 物品混用配方。精确比较保持不变。
+
+**服务端配方重载。** 在更新事件结束后保存当前连接的原版配方书快照，并在 REI 重载后恢复其中的服务端配方，包括本地配方回退触发的重载。服务器删除或整份替换配方时同步更新快照，退出连接后清理。服务端与本地配方的编号彼此独立，因此按显示内容去重。ReiSync 只同步物品条目；自定义配方仍需服务器通过配方书发送。
 
 **“配方数据不完整”警告。** MINEZ 服务器没有安装 REI，REI 无法从服务器获得完整的配方数据。当 Local Recipes Fallback（本地配方回退）设为 Never 时，上游每次进入服务器都会在左上角显示一条警告。这在 MINEZ 服务器上是预期情况，因此本 Fork 完全不再显示该警告。
 
@@ -71,11 +74,11 @@
 ./gradlew :fabric:build
 ```
 
-在 Windows PowerShell 中使用 `.\gradlew.bat :fabric:build`。产物位于 `fabric/build/libs/`，文件名包含版本号 `26.3.824.3`。运行 `./gradlew :runtime:test :default-plugin:test`，可执行菜单裁剪和同步相关的回归测试。
+在 Windows PowerShell 中使用 `.\gradlew.bat :fabric:build`。产物位于 `fabric/build/libs/`，文件名包含版本号 `26.3.824.4`。运行 `./gradlew :runtime:test :default-plugin:test`，可执行配方重载、菜单裁剪和同步相关的回归测试。
 
 ## 版本号
 
-版本号为 `<base_version>.<upstream_build>.<fork_revision>`，三项均取自 `gradle.properties`。当前版本为 `26.3.824.3`，基于上游 CF CI 构建 `824`，Fork 修订号为 `3`。本 Fork 的 `GITHUB_RUN_NUMBER` 不再影响版本号，本地和 CI 构建都会保留额外修订号。更新上游基线或发布新版本时，请修改相应属性；临时构建也可用 `-Pupstream_build=824 -Pfork_revision=3` 覆盖。
+版本号为 `<base_version>.<upstream_build>.<fork_revision>`，三项均取自 `gradle.properties`。当前版本为 `26.3.824.4`，基于上游 CF CI 构建 `824`，Fork 修订号为 `4`。本 Fork 的 `GITHUB_RUN_NUMBER` 不再影响版本号，本地和 CI 构建都会保留额外修订号。更新上游基线或发布新版本时，请修改相应属性；临时构建也可用 `-Pupstream_build=824 -Pfork_revision=4` 覆盖。
 
 上游项目中的下载链接指向官方构建，**不**包含这些改动。
 

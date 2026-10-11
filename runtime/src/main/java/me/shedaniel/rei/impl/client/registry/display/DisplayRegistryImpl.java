@@ -26,6 +26,7 @@ package me.shedaniel.rei.impl.client.registry.display;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+import com.mojang.serialization.DynamicOps;
 import dev.architectury.event.EventResult;
 import dev.architectury.event.events.client.ClientTickEvent;
 import me.shedaniel.rei.api.client.plugins.REIClientPlugin;
@@ -40,34 +41,34 @@ import me.shedaniel.rei.api.common.display.Display;
 import me.shedaniel.rei.api.common.plugins.PluginManager;
 import me.shedaniel.rei.api.common.registry.ReloadStage;
 import me.shedaniel.rei.impl.client.gui.widget.favorites.history.DisplayHistoryManager;
+import me.shedaniel.rei.impl.client.ClientHelperImpl;
 import me.shedaniel.rei.impl.common.InternalLogger;
 import me.shedaniel.rei.impl.common.plugins.ReloadManagerImpl;
 import me.shedaniel.rei.impl.common.registry.displays.AbstractDisplayRegistry;
 import me.shedaniel.rei.impl.common.registry.displays.DisplayConsumerImpl;
 import me.shedaniel.rei.impl.common.registry.displays.DisplaysHolderImpl;
 import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 import net.minecraft.world.item.crafting.display.RecipeDisplayId;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class DisplayRegistryImpl extends AbstractDisplayRegistry<REIClientPlugin, DisplayRegistryImpl.ClientDisplaysHolder> implements DisplayRegistry, DisplayConsumerImpl, DisplayGeneratorsRegistryImpl {
     public static final Object SYNCED = new Object();
 
-    /**
-     * Origin marker for displays added by the client-side recipe fallback. Carries the
-     * originating {@link RecipeDisplayId} so individual fallback displays can be removed when
-     * the server later advertises the same recipe (see {@link #removeFallbackRecipes(Set)}).
-     */
-    public record ClientFallbackOrigin(RecipeDisplayId id) {
+    /** 标记本地回退配方，并保存用于内容去重的键。 */
+    public record ClientFallbackOrigin(RecipeDisplayId id, @Nullable Tag key) {
     }
     private final Map<CategoryIdentifier<?>, List<DynamicDisplayGenerator<?>>> displayGenerators = new ConcurrentHashMap<>();
     private final List<DynamicDisplayGenerator<?>> globalDisplayGenerators = new ArrayList<>();
     private final List<DisplayVisibilityPredicate> visibilityPredicates = new ArrayList<>();
-    private final List<Runnable> jobs = new ArrayList<>();
+    private final Queue<Runnable> jobs = new ConcurrentLinkedQueue<>();
+    private final ServerRecipeBook serverRecipeBook = new ServerRecipeBook();
     private long lastAddWarning = -1;
     
     public DisplayRegistryImpl() {
@@ -76,21 +77,48 @@ public class DisplayRegistryImpl extends AbstractDisplayRegistry<REIClientPlugin
         int[] tick = {0};
         ClientTickEvent.CLIENT_POST.register(instance -> {
             if (tick[0]++ % 20 == 0 && !PluginManager.areAnyReloading() && ReloadManagerImpl.countRunningReloadTasks() == 0 && Minecraft.getInstance().getConnection() != null) {
-                for (Runnable job : this.jobs) {
-                    try {
-                        job.run();
-                    } catch (Throwable throwable) {
-                        InternalLogger.getInstance().error("Failed to run job", throwable);
-                    }
-                }
-                
-                this.jobs.clear();
+                runJobs();
             }
         });
     }
     
     public void addJob(Runnable job) {
         this.jobs.add(job);
+    }
+
+    private void runJobs() {
+        Runnable job;
+        while ((job = this.jobs.poll()) != null) {
+            try {
+                job.run();
+            } catch (Throwable throwable) {
+                InternalLogger.getInstance().error("Failed to run job", throwable);
+            }
+        }
+    }
+
+    public void updateServerRecipeBook() {
+        Minecraft client = Minecraft.getInstance();
+        var connection = client.getConnection();
+        if (connection == null || client.player == null || client.player.connection != connection) return;
+        serverRecipeBook.update(connection, client.player.getRecipeBook());
+        addJob(() -> {
+            if (Minecraft.getInstance().getConnection() == connection && synchronizeServerRecipes()) {
+                ClientRecipeFallback.injectInto(this);
+            }
+        });
+    }
+
+    public void clearServerRecipeBook() {
+        serverRecipeBook.clear();
+        jobs.clear();
+    }
+
+    private boolean synchronizeServerRecipes() {
+        if (!ClientHelperImpl.getInstance().canUsePackets()) {
+            return serverRecipeBook.synchronize(Minecraft.getInstance().getConnection(), this::removeRecipes, this::addRecipes);
+        }
+        return false;
     }
     
     @Override
@@ -159,12 +187,15 @@ public class DisplayRegistryImpl extends AbstractDisplayRegistry<REIClientPlugin
     @Override
     public void startReload() {
         super.startReload();
+        serverRecipeBook.startReload();
         this.displayGenerators.clear();
         this.visibilityPredicates.clear();
     }
     
     @Override
     public void endReload() {
+        // 先恢复服务端配方，再填充本地回退；完整重载不能丢掉自定义配方。
+        synchronizeServerRecipes();
         // Synthesize recipe displays from the client's own data packs for servers that
         // do not sync recipe data (no-op unless the local-recipes fallback is active).
         ClientRecipeFallback.injectInto(this);
@@ -181,19 +212,15 @@ public class DisplayRegistryImpl extends AbstractDisplayRegistry<REIClientPlugin
         this.cache().endReload();
         InternalLogger.getInstance().debug("%d displays registration have completed", size());
         
-        for (Runnable job : this.jobs) {
-            try {
-                job.run();
-            } catch (Throwable throwable) {
-                InternalLogger.getInstance().error("Failed to run job", throwable);
-            }
-        }
-        
-        this.jobs.clear();
+        runJobs();
     }
     
     public void addRecipes(List<RecipeDisplayEntry> entries) {
-        removeFallbackRecipes(entries.stream().map(RecipeDisplayEntry::id).collect(Collectors.toSet()));
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection != null) {
+            removeFallbackRecipesWithKeys(ServerRecipeBook.keys(entries,
+                    connection.registryAccess().createSerializationContext(NbtOps.INSTANCE)));
+        }
         Stopwatch stopwatch = Stopwatch.createStarted();
         int lastSize = size();
         if (!fillers().isEmpty()) {
@@ -210,21 +237,27 @@ public class DisplayRegistryImpl extends AbstractDisplayRegistry<REIClientPlugin
         InternalLogger.getInstance().debug("Filled %d displays from vanilla server in %s", size() - lastSize, stopwatch.stop());
     }
 
-    /**
-     * Fills displays from locally-loaded recipes (the client-side fallback), tagging them with
-     * a {@link ClientFallbackOrigin} so they can be removed if the server later syncs its own
-     * displays. Entries whose id the server already advertised ({@code excludeIds}) are skipped.
-     */
+    /** 填充本地回退配方；与服务端已有配方按内容去重，不共用两侧的编号。 */
     public void addFallbackRecipes(List<RecipeDisplayEntry> entries, Set<RecipeDisplayId> excludeIds) {
         Stopwatch stopwatch = Stopwatch.createStarted();
         int lastSize = size();
+        var connection = Minecraft.getInstance().getConnection();
+        DynamicOps<Tag> ops = connection == null ? NbtOps.INSTANCE : connection.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+        Set<Tag> serverKeys = ClientHelperImpl.getInstance().canUsePackets()
+                ? Set.of() : serverRecipeBook.keys(connection, ops);
+        Set<RecipeDisplayId> existingIds = new HashSet<>();
+        for (Object origin : holder().origins().values()) {
+            if (origin instanceof ClientFallbackOrigin fallback) existingIds.add(fallback.id());
+        }
         if (!fillers().isEmpty()) {
             for (RecipeDisplayEntry entry : entries) {
-                if (excludeIds.contains(entry.id())) {
+                if (excludeIds.contains(entry.id()) || existingIds.contains(entry.id())) {
                     continue;
                 }
                 try {
-                    ClientFallbackOrigin origin = new ClientFallbackOrigin(entry.id());
+                    Tag key = ServerRecipeBook.key(entry.display(), ops).orElse(null);
+                    if (key != null && serverKeys.contains(key)) continue;
+                    ClientFallbackOrigin origin = new ClientFallbackOrigin(entry.id(), key);
                     for (Display display : tryFillDisplay(entry.display(), DisplayAdditionReason.RECIPE_MANAGER, DisplayAdditionReason.withId(entry.id()))) {
                         add(display, origin);
                     }
@@ -280,19 +313,14 @@ public class DisplayRegistryImpl extends AbstractDisplayRegistry<REIClientPlugin
         }
     }
 
-    /**
-     * Removes only the fallback displays whose originating recipe id is in {@code ids}. Used when
-     * the server advertises recipes mid-session (after the fallback already injected): the
-     * server-provided displays supersede the local ones, so the overlapping fallbacks are dropped.
-     */
-    public void removeFallbackRecipes(Set<RecipeDisplayId> ids) {
-        if (ids.isEmpty()) {
+    private void removeFallbackRecipesWithKeys(Set<Tag> keys) {
+        if (keys.isEmpty()) {
             return;
         }
         List<Display> toRemove = new LinkedList<>();
         WeakHashMap<Display, Object> origins = this.holder().origins();
         for (Map.Entry<Display, Object> entry : origins.entrySet()) {
-            if (entry.getValue() instanceof ClientFallbackOrigin origin && ids.contains(origin.id())) {
+            if (entry.getValue() instanceof ClientFallbackOrigin origin && origin.key() != null && keys.contains(origin.key())) {
                 toRemove.add(entry.getKey());
             }
         }

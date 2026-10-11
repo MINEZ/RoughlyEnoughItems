@@ -118,15 +118,12 @@ import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundRecipeBookAddPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.crafting.RecipeAccess;
-import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
-import net.minecraft.world.item.crafting.display.RecipeDisplayId;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
@@ -348,10 +345,7 @@ public class RoughlyEnoughItemsCoreClient {
 
             InternalLogger.getInstance().debug("Received server's request to add %d recipes.", entries.size());
             DisplayRegistryImpl registry = (DisplayRegistryImpl) DisplayRegistry.getInstance();
-            List<RecipeDisplayEntry> mapped = CollectionUtils.map(entries, ClientboundRecipeBookAddPacket.Entry::contents);
-            // Record the server-advertised ids so the local fallback can dedup against them.
-            ClientRecipeFallback.onServerRecipeBookAdd(CollectionUtils.map(mapped, RecipeDisplayEntry::id));
-            registry.addJob(() -> registry.addRecipes(mapped));
+            registry.updateServerRecipeBook();
         });
         ClientRecipeUpdateEvent.REMOVE.register((recipeAccess, entries) -> {
             if (ClientHelperImpl.getInstance().canUsePackets()) {
@@ -360,14 +354,13 @@ public class RoughlyEnoughItemsCoreClient {
 
             InternalLogger.getInstance().debug("Received server's request to remove %d recipes.", entries.size());
             DisplayRegistryImpl registry = (DisplayRegistryImpl) DisplayRegistry.getInstance();
-            Set<RecipeDisplayId> ids = new HashSet<>(entries);
-            ClientRecipeFallback.onServerRecipeBookRemove(ids);
-            registry.addJob(() -> registry.removeRecipes(ids));
+            registry.updateServerRecipeBook();
         });
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
             InternalLogger.getInstance().debug("Player quit, clearing reload tasks!");
             endReload.setValue(-1);
             ReloadManagerImpl.terminateReloadTasks();
+            ((DisplayRegistryImpl) DisplayRegistry.getInstance()).clearServerRecipeBook();
             ClientRecipeFallback.reset();
         });
         ClientGuiEvent.INIT_PRE.register((screen, access) -> {

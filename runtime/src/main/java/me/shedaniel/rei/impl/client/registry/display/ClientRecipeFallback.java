@@ -46,7 +46,6 @@ import net.minecraft.tags.TagLoader;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
-import net.minecraft.world.item.crafting.display.RecipeDisplayId;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -54,7 +53,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 /**
@@ -69,13 +67,6 @@ import java.util.stream.Stream;
 public final class ClientRecipeFallback {
     private ClientRecipeFallback() {
     }
-
-    /**
-     * Recipe-display ids the server advertised through the vanilla recipe book
-     * ({@code ClientRecipeUpdateEvent.ADD}). Used to avoid double-counting recipes
-     * that both the server and the local fallback provide.
-     */
-    private static final Set<RecipeDisplayId> serverProvidedIds = ConcurrentHashMap.newKeySet();
 
     /**
      * Bumped whenever the player joins/leaves a world, so async loads or cached
@@ -121,36 +112,6 @@ public final class ClientRecipeFallback {
         cachedEntries = null;
         loading = false;
         receivedServerDisplaySync = false;
-        serverProvidedIds.clear();
-    }
-
-    /**
-     * Records recipe-book ids the server advertised, so the fallback can dedup against them.
-     * If the fallback already injected its displays (e.g. the player unlocked a recipe
-     * mid-session), the now-overlapping local displays are removed so the server's win and we
-     * don't render duplicates.
-     */
-    public static void onServerRecipeBookAdd(List<RecipeDisplayId> ids) {
-        if (ids.isEmpty()) {
-            return;
-        }
-        boolean hadInjected = cachedEntriesForCurrentConnection() != null;
-        serverProvidedIds.addAll(ids);
-        if (hadInjected && shouldInject()) {
-            Set<RecipeDisplayId> newlyAdded = Set.copyOf(ids);
-            try {
-                DisplayRegistry registry = DisplayRegistry.getInstance();
-                if (registry instanceof DisplayRegistryImpl impl) {
-                    impl.addJob(() -> impl.removeFallbackRecipes(newlyAdded));
-                }
-            } catch (Throwable throwable) {
-                InternalLogger.getInstance().error("[Local Recipes] Failed to remove overlapping fallback displays after server recipe add", throwable);
-            }
-        }
-    }
-
-    public static void onServerRecipeBookRemove(Set<RecipeDisplayId> ids) {
-        serverProvidedIds.removeAll(ids);
     }
 
     /**

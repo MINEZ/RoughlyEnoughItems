@@ -48,6 +48,7 @@ Following upstream, Minecraft 26.3 on Fabric and NeoForge. The ReiSync item stre
 | Receiving CraftEngine items from the ReiSync server plugin | Added | Fabric |
 | Right-click opening an item's usages | Fixed | Fabric, NeoForge |
 | CraftEngine items in recipe and usage lookups | Fixed | Fabric, NeoForge |
+| Server recipes surviving REI reloads | Fixed | Fabric, NeoForge |
 | “Recipes not full” warning | Removed | Fabric, NeoForge |
 | Craftable filter button icon and submenu clipping | Fixed | Fabric, NeoForge |
 
@@ -58,6 +59,8 @@ Following upstream, Minecraft 26.3 on Fabric and NeoForge. The ReiSync item stre
 **Right-click usages.** Some clients, NetEase's among them, never pass the right mouse button's release on to REI, so right-clicking an item did nothing and only the U key opened its usages. Right-click now acts on press instead. It is never used for dragging, so nothing is lost; the left button still acts on release, which keeps press-and-drag for pulling items out. In cheat mode, where right-click gives items, it keeps acting on release as upstream does.
 
 **CraftEngine recipes.** A CraftEngine item is a vanilla item underneath, with its real identity stored as `craftengine:id` in `minecraft:custom_data`. Upstream compares items by their base item when looking up recipes and usages, so a CraftEngine item picked up every vanilla recipe of its base item, and the other way round. That id is now part of the comparison, and the wildcard fallback upstream runs when a lookup finds nothing keeps it as well. A 64-bit ID hash avoids the known collisions of Java’s 32-bit string hash, which could otherwise mix distinct CraftEngine items. Exact comparisons are unchanged.
+
+**Server recipe reloads.** The fork snapshots the current connection’s vanilla recipe book after updates and restores its server recipes when REI reloads, including the reload triggered by local recipe fallback. Recipe removals and complete replacements update the snapshot; leaving clears it. Local and server recipes are deduplicated by their display contents, since their numeric IDs are independent. ReiSync synchronizes item entries only; custom recipes must still be sent by the server through the recipe book.
 
 **Recipes-not-full warning.** The MINEZ server does not run REI, so REI never receives the full recipe data from it. With Local Recipes Fallback set to Never, upstream shows a warning in the top-left corner on every join. That is expected here, so the warning is not shown at all.
 
@@ -71,11 +74,11 @@ Requires JDK 25.
 ./gradlew :fabric:build
 ```
 
-On Windows PowerShell, use `.\gradlew.bat :fabric:build`. The result lands in `fabric/build/libs/` and includes version `26.3.824.3` in its filename. Run `./gradlew :runtime:test :default-plugin:test` for the menu clipping and synchronization regression tests.
+On Windows PowerShell, use `.\gradlew.bat :fabric:build`. The result lands in `fabric/build/libs/` and includes version `26.3.824.4` in its filename. Run `./gradlew :runtime:test :default-plugin:test` for the recipe reload, menu clipping, and synchronization regression tests.
 
 ## Versioning
 
-The version is `<base_version>.<upstream_build>.<fork_revision>`. All three values come from `gradle.properties`; the current version is `26.3.824.3`, based on upstream CF CI build `824`, with fork revision `3`. The fork’s own `GITHUB_RUN_NUMBER` does not change the version, so local and CI builds retain the extra revision. When updating the baseline or making a new release, update the matching property; a one-off build can override it with `-Pupstream_build=824 -Pfork_revision=3`.
+The version is `<base_version>.<upstream_build>.<fork_revision>`. All three values come from `gradle.properties`; the current version is `26.3.824.4`, based on upstream CF CI build `824`, with fork revision `4`. The fork’s own `GITHUB_RUN_NUMBER` does not change the version, so local and CI builds retain the extra revision. When updating the baseline or making a new release, update the matching property; a one-off build can override it with `-Pupstream_build=824 -Pfork_revision=4`.
 
 The download links on the upstream project point at official builds and do **not** include these changes.
 
